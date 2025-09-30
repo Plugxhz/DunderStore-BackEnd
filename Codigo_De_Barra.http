@@ -1,0 +1,6 @@
+@Codigo_De_Barra_HostAddress = http://localhost:5211
+
+GET {{Codigo_De_Barra_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
