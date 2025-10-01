@@ -1,4 +1,4 @@
-﻿using Codigo_De_Barra.Entities;
+﻿using Dunder_Store.Entities;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 

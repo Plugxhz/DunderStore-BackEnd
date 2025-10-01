@@ -1,6 +1,6 @@
-﻿using Codigo_De_Barra.Entities;
+﻿using Dunder_Store.Entities;
 
-namespace Codigo_De_Barra.Interfaces.IServices
+namespace Dunder_Store.Interfaces.IServices
 {
     public interface IProdutoService
     {

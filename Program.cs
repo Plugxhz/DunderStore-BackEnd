@@ -1,9 +1,9 @@
-using Codigo_De_Barra;
-using Codigo_De_Barra.Database;
-using Codigo_De_Barra.Interfaces.IRepositories;
-using Codigo_De_Barra.Interfaces.IServices;
-using Codigo_De_Barra.Data.Repositories;
-using Codigo_De_Barra.Services;
+using Dunder_Store;
+using Dunder_Store.Database;
+using Dunder_Store.Interfaces.IRepositories;
+using Dunder_Store.Interfaces.IServices;
+using Dunder_Store.Data.Repositories;
+using Dunder_Store.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using System.Text.Json.Serialization;

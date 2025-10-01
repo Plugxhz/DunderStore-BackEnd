@@ -1,6 +1,6 @@
-﻿namespace Codigo_De_Barra.Interfaces.IRepositories
+﻿namespace Dunder_Store.Interfaces.IRepositories
 {
-    using Codigo_De_Barra.Entities;
+    using Dunder_Store.Entities;
     public interface IClienteRepository
     {
         Task<IEnumerable<Cliente>> GetAllAsync();

@@ -1,4 +1,4 @@
-﻿namespace Codigo_De_Barra.DTO
+﻿namespace Dunder_Store.DTO
 {
     public class PedidoProdutoDTO
     {

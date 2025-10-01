@@ -1,9 +1,9 @@
-﻿using Codigo_De_Barra.Data.Repositories;
-using Codigo_De_Barra.Entities;
-using Codigo_De_Barra.Interfaces.IRepositories;
-using Codigo_De_Barra.Interfaces.IServices;
+﻿using Dunder_Store.Data.Repositories;
+using Dunder_Store.Entities;
+using Dunder_Store.Interfaces.IRepositories;
+using Dunder_Store.Interfaces.IServices;
 
-namespace Codigo_De_Barra.Services
+namespace Dunder_Store.Services
 {
     public class ProdutoService : IProdutoService
     {

@@ -1,6 +1,6 @@
-﻿using Codigo_De_Barra.Entities;
+﻿using Dunder_Store.Entities;
 
-namespace Codigo_De_Barra.DTO
+namespace Dunder_Store.DTO
 {
     public class PedidoDTO
     {

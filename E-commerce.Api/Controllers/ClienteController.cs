@@ -1,11 +1,11 @@
-﻿using Codigo_De_Barra.Database;
-using Codigo_De_Barra.DTO;
-using Codigo_De_Barra.Entities;
+﻿using Dunder_Store.Database;
+using Dunder_Store.DTO;
+using Dunder_Store.Entities;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
-namespace Codigo_De_Barra.Controllers
+namespace Dunder_Store.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]

@@ -1,8 +1,8 @@
 ﻿using System;
-using Codigo_De_Barra.Entities;
+using Dunder_Store.Entities;
 using Microsoft.EntityFrameworkCore;
 
-namespace Codigo_De_Barra.Database
+namespace Dunder_Store.Database
 {
     public partial class ProdutosDbContext : DbContext
     {

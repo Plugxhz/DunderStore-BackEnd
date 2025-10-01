@@ -1,7 +1,7 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace Codigo_De_Barra.Entities
+namespace Dunder_Store.Entities
 {
     public class PedidoProduto
     {

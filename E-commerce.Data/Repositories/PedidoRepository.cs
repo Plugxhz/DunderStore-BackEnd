@@ -1,9 +1,9 @@
-﻿using Codigo_De_Barra.Database;
-using Codigo_De_Barra.Entities;
-using Codigo_De_Barra.Interfaces.IRepositories;
+﻿using Dunder_Store.Database;
+using Dunder_Store.Entities;
+using Dunder_Store.Interfaces.IRepositories;
 using Microsoft.EntityFrameworkCore;
 
-namespace Codigo_De_Barra.Data.Repositories
+namespace Dunder_Store.Data.Repositories
 {
     public class PedidoRepository : IPedidoRepository
     {

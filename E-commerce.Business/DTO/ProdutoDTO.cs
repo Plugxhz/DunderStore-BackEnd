@@ -1,7 +1,7 @@
 ﻿using System.ComponentModel.DataAnnotations.Schema;
 using System.ComponentModel.DataAnnotations;
 
-namespace Codigo_De_Barra.DTO
+namespace Dunder_Store.DTO
 {
     public class ProdutoDTO
     {
