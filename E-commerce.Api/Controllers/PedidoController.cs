@@ -1,9 +1,11 @@
 ﻿using Dunder_Store.Database;
 using Dunder_Store.DTO;
 using Dunder_Store.Entities;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+
+// importação de autorização
+using Microsoft.AspNetCore.Authorization;
 
 namespace Dunder_Store.Controllers
 {
@@ -12,46 +14,21 @@ namespace Dunder_Store.Controllers
     public class PedidoController : ControllerBase
     {
         private readonly ProdutosDbContext dbContext;
+
         public PedidoController(ProdutosDbContext dbContext)
         {
             this.dbContext = dbContext;
         }
 
+        [Authorize] // Exige Token Administrativo
         [HttpGet]
-        public ActionResult<IEnumerable<Pedido>> GetPedido()
+        public async Task<ActionResult<IEnumerable<Pedido>>> GetPedidos()
         {
-            return Ok(dbContext.Pedidos
+            var pedidos = await dbContext.Pedidos
                 .Include(p => p.Cliente)
                 .Include(p => p.PedidoProdutos).ThenInclude(pp => pp.Produto)
-                .OrderByDescending(p => p.DataPedido));
-        }
-
-        [HttpGet("{id}")]
-        public ActionResult<Pedido> GetPedido(string id)
-        {
-            var pedido = dbContext.Pedidos
-                .Include(p => p.PedidoProdutos).ThenInclude(pp => pp.Produto)
-                .Include(p => p.Cliente)
-                .FirstOrDefault(p => p.Id == id);
-
-            if (pedido == null)
-                return NotFound();
-
-            return Ok(pedido);
-        }
-
-        [HttpGet("pedidosPorCliente/{idCliente}")]
-        public ActionResult<IEnumerable<Pedido>> GetPedidosPorCliente(string idCliente)
-        {
-            var cliente = dbContext.Clientes.FirstOrDefault(c => c.Id == idCliente);
-            if (cliente == null)
-                return BadRequest("Usuário não encontrado");
-
-            var pedidos = dbContext.Pedidos
-                .Include(p => p.PedidoProdutos).ThenInclude(pp => pp.Produto)
-                .Include(p => p.Cliente)
-                .Where(p => p.Cliente.Id == idCliente)
-                .OrderByDescending(p => p.DataPedido);
+                .OrderByDescending(p => p.DataPedido)
+                .ToListAsync();
 
             if (!pedidos.Any())
                 return NoContent();
@@ -59,22 +36,58 @@ namespace Dunder_Store.Controllers
             return Ok(pedidos);
         }
 
+        [HttpGet("{id}")]
+        public async Task<ActionResult<Pedido>> GetPedido(string id)
+        {
+            var pedido = await dbContext.Pedidos
+                .Include(p => p.PedidoProdutos).ThenInclude(pp => pp.Produto)
+                .Include(p => p.Cliente)
+                .FirstOrDefaultAsync(p => p.Id == id);
+
+            if (pedido == null)
+                return NotFound("Pedido não encontrado.");
+
+            return Ok(pedido);
+        }
+
+        [HttpGet("cliente/{idCliente}")]
+        public async Task<ActionResult<IEnumerable<Pedido>>> GetPedidosPorCliente(string idCliente)
+        {
+            var cliente = await dbContext.Clientes.FirstOrDefaultAsync(c => c.Id == idCliente);
+            if (cliente == null)
+                return BadRequest("Cliente não encontrado.");
+
+            var pedidos = await dbContext.Pedidos
+                .Include(p => p.PedidoProdutos).ThenInclude(pp => pp.Produto)
+                .Include(p => p.Cliente)
+                .Where(p => p.Cliente.Id == idCliente)
+                .OrderByDescending(p => p.DataPedido)
+                .ToListAsync();
+
+            if (!pedidos.Any())
+                return NoContent();
+
+            return Ok(pedidos);
+        }
+
+        [Authorize] // Exige Token Administrativo
         [HttpPost]
-        public ActionResult<Pedido> CreatePedido(PedidoDTO novoPedidoDTO)
+        public async Task<ActionResult<Pedido>> CreatePedido(PedidoDTO novoPedidoDTO)
         {
             if (novoPedidoDTO.produtos == null || !novoPedidoDTO.produtos.Any())
-                return BadRequest("É necessário enviar a lista de produtos");
+                return BadRequest("É necessário enviar a lista de produtos.");
 
-            var cliente = dbContext.Clientes.FirstOrDefault(c => c.Cpf == novoPedidoDTO.clientecpf);
+            var cliente = await dbContext.Clientes.FirstOrDefaultAsync(c => c.Cpf == novoPedidoDTO.clientecpf);
             if (cliente == null)
-                return BadRequest("Cliente inválido");
+                return BadRequest("Cliente inválido.");
 
             var codigos = novoPedidoDTO.produtos.Select(p => p.CodigoDeBarra).ToList();
-            var produtosEncontrados = dbContext.Produtos
-                .Where(p => codigos.Contains(p.CodigoDeBarra)).ToList();
+            var produtosEncontrados = await dbContext.Produtos
+                .Where(p => codigos.Contains(p.CodigoDeBarra))
+                .ToListAsync();
 
             if (produtosEncontrados.Count != novoPedidoDTO.produtos.Count)
-                return BadRequest("Um ou mais produtos não foram encontrados");
+                return BadRequest("Um ou mais produtos não foram encontrados.");
 
             var novoPedido = new Pedido(cliente, DateTime.Now);
 
@@ -82,85 +95,76 @@ namespace Dunder_Store.Controllers
             {
                 var produto = produtosEncontrados.FirstOrDefault(p => p.CodigoDeBarra == produtoDTO.CodigoDeBarra);
                 if (produto != null)
-                {
-                    novoPedido.PedidoProdutos.Add(new PedidoProduto
-                    {
-                        Produto = produto
-                    });
-                }
+                    novoPedido.PedidoProdutos.Add(new PedidoProduto { Produto = produto });
             }
 
-            dbContext.Pedidos.Add(novoPedido);
-            dbContext.SaveChanges();
+            await dbContext.Pedidos.AddAsync(novoPedido);
+            await dbContext.SaveChangesAsync();
 
             return CreatedAtAction(nameof(GetPedido), new { id = novoPedido.Id }, novoPedido);
         }
 
+        [Authorize] // Exige Token Administrativo
         [HttpPut("{id}")]
-        public IActionResult UpdatePedido(string id, PedidoDTO pedidoAtualizadoDTO)
+        public async Task<IActionResult> UpdatePedido(string id, PedidoDTO pedidoAtualizadoDTO)
         {
-            var pedido = dbContext.Pedidos
-                .Include(p => p.PedidoProdutos)
-                .ThenInclude(pp => pp.Produto)
-                .FirstOrDefault(p => p.Id == id);
+            var pedido = await dbContext.Pedidos
+                .Include(p => p.PedidoProdutos).ThenInclude(pp => pp.Produto)
+                .FirstOrDefaultAsync(p => p.Id == id);
 
             if (pedido == null)
-                return NotFound("Pedido não encontrado");
+                return NotFound("Pedido não encontrado.");
 
             if (pedidoAtualizadoDTO.produtos == null || !pedidoAtualizadoDTO.produtos.Any())
-                return BadRequest("É necessário enviar a lista de produtos");
+                return BadRequest("É necessário enviar a lista de produtos.");
 
-            // Remove os produtos antigos
             dbContext.PedidoProdutos.RemoveRange(pedido.PedidoProdutos);
             pedido.PedidoProdutos.Clear();
 
             var codigos = pedidoAtualizadoDTO.produtos.Select(p => p.CodigoDeBarra).ToList();
-            var produtosEncontrados = dbContext.Produtos.Where(p => codigos.Contains(p.CodigoDeBarra)).ToList();
+            var produtosEncontrados = await dbContext.Produtos.Where(p => codigos.Contains(p.CodigoDeBarra)).ToListAsync();
 
             foreach (var produtoDTO in pedidoAtualizadoDTO.produtos)
             {
                 var produto = produtosEncontrados.FirstOrDefault(p => p.CodigoDeBarra == produtoDTO.CodigoDeBarra);
                 if (produto != null)
-                {
-                    pedido.PedidoProdutos.Add(new PedidoProduto
-                    {
-                        Produto = produto
-                    });
-                }
+                    pedido.PedidoProdutos.Add(new PedidoProduto { Produto = produto });
             }
 
-            dbContext.SaveChanges();
+            await dbContext.SaveChangesAsync();
             return NoContent();
         }
 
+        [Authorize] // Exige Token Administrativo
         [HttpDelete("{id}")]
-        public IActionResult DeletePedido(string id)
+        public async Task<IActionResult> DeletePedido(string id)
         {
-            var pedido = dbContext.Pedidos
+            var pedido = await dbContext.Pedidos
                 .Include(p => p.PedidoProdutos)
-                .FirstOrDefault(p => p.Id == id);
+                .FirstOrDefaultAsync(p => p.Id == id);
 
             if (pedido == null)
-                return NotFound();
+                return NotFound("Pedido não encontrado.");
 
             dbContext.PedidoProdutos.RemoveRange(pedido.PedidoProdutos);
             dbContext.Pedidos.Remove(pedido);
-            dbContext.SaveChanges();
+            await dbContext.SaveChangesAsync();
 
             return NoContent();
         }
 
-        [HttpDelete("deleteClientePedido/{idCliente}")]
-        public IActionResult DeleteClientePedido(string idCliente)
+        [Authorize] // Exige Token Administrativo
+        [HttpDelete("cliente/{idCliente}")]
+        public async Task<IActionResult> DeletePedidosCliente(string idCliente)
         {
-            var cliente = dbContext.Clientes.FirstOrDefault(c => c.Id == idCliente);
+            var cliente = await dbContext.Clientes.FirstOrDefaultAsync(c => c.Id == idCliente);
             if (cliente == null)
-                return BadRequest("Usuário não encontrado");
+                return BadRequest("Cliente não encontrado.");
 
-            var pedidos = dbContext.Pedidos
+            var pedidos = await dbContext.Pedidos
                 .Include(p => p.PedidoProdutos)
                 .Where(p => p.Cliente.Id == idCliente)
-                .ToList();
+                .ToListAsync();
 
             if (!pedidos.Any())
                 return NoContent();
@@ -171,7 +175,7 @@ namespace Dunder_Store.Controllers
                 dbContext.Pedidos.Remove(pedido);
             }
 
-            dbContext.SaveChanges();
+            await dbContext.SaveChangesAsync();
             return NoContent();
         }
     }

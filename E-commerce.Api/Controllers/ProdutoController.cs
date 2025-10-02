@@ -1,6 +1,7 @@
 ﻿using Dunder_Store.Database;
 using Dunder_Store.DTO;
 using Dunder_Store.Entities;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -12,151 +13,135 @@ namespace Dunder_Store.Controllers
     public class ProdutoController : ControllerBase
     {
         private readonly ProdutosDbContext dbContext;
+
         public ProdutoController(ProdutosDbContext dbContext)
         {
             this.dbContext = dbContext;
         }
 
         [HttpGet]
-        public ActionResult<IEnumerable<Produto>> GetProdutos()
+        public async Task<ActionResult<IEnumerable<Produto>>> GetProdutos()
         {
-            return Ok(dbContext.Produtos.OrderBy(p => p.Nome));
+            var produtos = await dbContext.Produtos
+                .OrderBy(p => p.Nome)
+                .ToListAsync();
+
+            if (!produtos.Any())
+                return NoContent();
+
+            return Ok(produtos);
         }
 
-        [HttpGet("idProduto/{id}")]
-        public ActionResult<Produto> GetProdutoId(string id)
+        [HttpGet("{id}")]
+        public async Task<ActionResult<Produto>> GetProdutoById(string id)
         {
-            Produto? produto = dbContext
-                .Produtos
-                .FirstOrDefault(p => p.Id == id);
+            var produto = await dbContext.Produtos.FirstOrDefaultAsync(p => p.Id == id);
 
             if (produto is null)
-            {
-                return NotFound();
-            }
+                return NotFound("Produto não encontrado.");
+
             return Ok(produto);
         }
 
-        [HttpGet("codigodebarra/{codigoDeBarra}")] // <-- Rota corrigida
-        public ActionResult<Produto> GetProdutoCodigoDeBarra(string codigoDeBarra)
+        [HttpGet("codigoDeBarra/{codigoDeBarra}")]
+        public async Task<ActionResult<Produto>> GetProdutoCodigoDeBarra(string codigoDeBarra)
         {
-            Produto? produto = dbContext
-                .Produtos
-                .FirstOrDefault(p => p.CodigoDeBarra == codigoDeBarra);
+            var produto = await dbContext.Produtos.FirstOrDefaultAsync(p => p.CodigoDeBarra == codigoDeBarra);
 
             if (produto is null)
-            {
                 return NotFound("Produto não encontrado com este código de barra.");
-            }
 
             return Ok(produto);
         }
 
-        [HttpGet("nameProduct/{nomeProduto}")]
-        public ActionResult<Produto> GetProdutoNome(string nomeProduto)
+        [HttpGet("nome/{nomeProduto}")]
+        public async Task<ActionResult<Produto>> GetProdutoNome(string nomeProduto)
         {
-            Produto? produto = dbContext
-                .Produtos
-                .FirstOrDefault(p => p.Nome == nomeProduto);
+            var produto = await dbContext.Produtos.FirstOrDefaultAsync(p => p.Nome == nomeProduto);
 
             if (produto is null)
-            {
-                return NotFound();
-            }
+                return NotFound("Produto não encontrado com este nome.");
 
             return Ok(produto);
         }
 
+        [Authorize] // Exige Token Administrativo
         [HttpPost]
         public async Task<ActionResult<Produto>> CreateProduto([FromForm] ProdutoDTO novoProdutoDTO, IFormFile imagem)
         {
-            if (dbContext.Produtos.Any(produto => produto.CodigoDeBarra == novoProdutoDTO.codigoDeBarra))
-            {
-                return BadRequest("Codigo de barra já existente!");
-            }
-
-            if (imagem == null || imagem.Length == 0)
-            {
-                return BadRequest("Imagem obrigatória");
-            }
-
-            string extensaoArquivo = Path.GetExtension(imagem.FileName);
-            string nomePasta = "produtos";
-            string caminhoDaPastaDeUploads = Path.Combine("wwwroot", nomePasta);
-            Directory.CreateDirectory(caminhoDaPastaDeUploads);
-
-            string nomeDoArquivo = $"{Guid.NewGuid()}{extensaoArquivo}";
-            string caminhoDoArquivo = Path.Combine(caminhoDaPastaDeUploads, nomeDoArquivo);
-
-            using (var stream = new FileStream(caminhoDoArquivo, FileMode.Create))
-            {
-                await imagem.CopyToAsync(stream);
-            }
-
-            string urlServidor = $"{Request.Scheme}://{Request.Host}";
-            string imagemUrl = $"{urlServidor}/{nomePasta}/{nomeDoArquivo}";
-
-            Produto novoProduto = new Produto(
-                novoProdutoDTO.nome,
-                novoProdutoDTO.descricao,
-                novoProdutoDTO.preco,
-                novoProdutoDTO.codigoDeBarra,
-                imagemURL: imagemUrl
-            );
-
             try
             {
-                dbContext.Produtos.Add(novoProduto);
-                dbContext.SaveChanges();
+                if (await dbContext.Produtos.AnyAsync(produto => produto.CodigoDeBarra == novoProdutoDTO.codigoDeBarra))
+                    return BadRequest("Já existe um produto com este código de barras.");
+
+                if (imagem == null || imagem.Length == 0)
+                    return BadRequest("Imagem obrigatória.");
+
+                string extensaoArquivo = Path.GetExtension(imagem.FileName);
+                string nomePasta = "produtos";
+                string caminhoDaPasta = Path.Combine("wwwroot", nomePasta);
+                Directory.CreateDirectory(caminhoDaPasta);
+
+                string nomeArquivo = $"{Guid.NewGuid()}{extensaoArquivo}";
+                string caminhoCompleto = Path.Combine(caminhoDaPasta, nomeArquivo);
+
+                using (var stream = new FileStream(caminhoCompleto, FileMode.Create))
+                {
+                    await imagem.CopyToAsync(stream);
+                }
+
+                string urlServidor = $"{Request.Scheme}://{Request.Host}";
+                string imagemUrl = $"{urlServidor}/{nomePasta}/{nomeArquivo}";
+
+                var novoProduto = new Produto(
+                    novoProdutoDTO.nome,
+                    novoProdutoDTO.descricao,
+                    novoProdutoDTO.preco,
+                    novoProdutoDTO.codigoDeBarra,
+                    imagemUrl
+                );
+
+                await dbContext.Produtos.AddAsync(novoProduto);
+                await dbContext.SaveChangesAsync();
+
+                return CreatedAtAction(nameof(GetProdutoById), new { id = novoProduto.Id }, novoProduto);
             }
             catch (Exception ex)
             {
-                return BadRequest($"Erro ao criar produto: {ex.Message}");
+                return StatusCode(500, $"Erro ao criar produto: {ex.Message}");
             }
-
-            return CreatedAtAction(nameof(CreateProduto), novoProduto);
         }
 
+        [Authorize] // Exige Token Administrativo
         [HttpPatch("{id}")]
-        public IActionResult UpdateProduto(string id, ProdutoDTO produtoAtualizadoDTO)
+        public async Task<IActionResult> UpdateProduto(string id, ProdutoDTO produtoAtualizadoDTO)
         {
-            Produto? produtoEncontrado = dbContext.Produtos.FirstOrDefault(p => p.Id == id);
+            var produto = await dbContext.Produtos.FirstOrDefaultAsync(p => p.Id == id);
 
-            if (produtoEncontrado is null)
-            {
-                return NotFound();
-            }
+            if (produto is null)
+                return NotFound("Produto não encontrado.");
 
-            if (dbContext.Produtos.Any(produto => produto.CodigoDeBarra == produtoAtualizadoDTO.codigoDeBarra && produto.Id != id))
-            {
-                return BadRequest("Codigo de barra já existente!");
-            }
+            if (await dbContext.Produtos.AnyAsync(p => p.CodigoDeBarra == produtoAtualizadoDTO.codigoDeBarra && p.Id != id))
+                return BadRequest("Já existe outro produto com este código de barras.");
 
-            if (produtoAtualizadoDTO.nome != "string")
-            {
-                produtoEncontrado.Nome = produtoAtualizadoDTO.nome;
-            }
+            if (!string.IsNullOrWhiteSpace(produtoAtualizadoDTO.nome) && produtoAtualizadoDTO.nome != "string")
+                produto.Nome = produtoAtualizadoDTO.nome;
 
-            if (produtoAtualizadoDTO.descricao != "string")
-            {
-                produtoEncontrado.Descricao = produtoAtualizadoDTO.descricao;
-            }
+            if (!string.IsNullOrWhiteSpace(produtoAtualizadoDTO.descricao) && produtoAtualizadoDTO.descricao != "string")
+                produto.Descricao = produtoAtualizadoDTO.descricao;
 
-            if (produtoAtualizadoDTO.preco != 0)
-            {
-                produtoEncontrado.Preco = produtoAtualizadoDTO.preco;
-            }
+            if (produtoAtualizadoDTO.preco > 0)
+                produto.Preco = produtoAtualizadoDTO.preco;
 
-            if (produtoAtualizadoDTO.codigoDeBarra != "string")
-            {
-                produtoEncontrado.CodigoDeBarra = produtoAtualizadoDTO.codigoDeBarra;
-            }
+            if (!string.IsNullOrWhiteSpace(produtoAtualizadoDTO.codigoDeBarra) && produtoAtualizadoDTO.codigoDeBarra != "string")
+                produto.CodigoDeBarra = produtoAtualizadoDTO.codigoDeBarra;
 
-            dbContext.SaveChanges();
+            await dbContext.SaveChangesAsync();
 
             return NoContent();
         }
 
+        [Authorize] // Exige Token Administrativo
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteProduto(string id)
         {
@@ -165,9 +150,7 @@ namespace Dunder_Store.Controllers
                 .FirstOrDefaultAsync(p => p.Id == id);
 
             if (produto == null)
-            {
-                return NotFound();
-            }
+                return NotFound("Produto não encontrado.");
 
             dbContext.PedidoProdutos.RemoveRange(produto.PedidoProdutos);
             dbContext.Produtos.Remove(produto);

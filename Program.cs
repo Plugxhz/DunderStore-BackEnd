@@ -7,6 +7,9 @@ using Dunder_Store.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 namespace WebApplication1
 {
@@ -77,6 +80,38 @@ namespace WebApplication1
             builder.Services.AddScoped<IPedidoRepository, PedidoRepository>();
             builder.Services.AddScoped<IProdutoRepository, ProdutoRepository>();
 
+            // --- CONFIGURAÇÃO JWT ---
+            var jwtSection = builder.Configuration.GetSection("Jwt");
+            var jwtKey = jwtSection.GetValue<string>("Key");
+            var jwtIssuer = jwtSection.GetValue<string>("Issuer");
+            var jwtAudience = jwtSection.GetValue<string>("Audience");
+
+            builder.Services.AddAuthentication(options =>
+            {
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            })
+            .AddJwtBearer(options =>
+            {
+                options.RequireHttpsMetadata = false; // em produção, deixar true
+                options.SaveToken = true;
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateIssuerSigningKey = true,
+                    ValidIssuer = jwtIssuer,
+                    ValidAudience = jwtAudience,
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+                    ClockSkew = TimeSpan.Zero
+                };
+            });
+
+            builder.Services.AddAuthorization(options =>
+            {
+                options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+            });
+
             var app = builder.Build();
 
             // Use CORS
@@ -91,6 +126,8 @@ namespace WebApplication1
 
             app.UseHttpsRedirection();
 
+            // --- Autenticação e autorização ---
+            app.UseAuthentication();
             app.UseAuthorization();
 
             app.MapControllers();
