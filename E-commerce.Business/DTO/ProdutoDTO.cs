@@ -1,7 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations.Schema;
-using System.ComponentModel.DataAnnotations;
-
-namespace Dunder_Store.DTO
+﻿namespace Dunder_Store.DTO
 {
     public class ProdutoDTO
     {
@@ -9,5 +6,8 @@ namespace Dunder_Store.DTO
         public string descricao { get; set; }
         public decimal preco { get; set; }
         public string codigoDeBarra { get; set; }
+        public string? cor { get; set; }
+        public string? tamanho { get; set; }
+        public string? produtoPaiId { get; set; } // null = produto principal
     }
 }

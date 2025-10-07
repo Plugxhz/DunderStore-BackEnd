@@ -65,7 +65,7 @@ namespace Dunder_Store.Controllers
             return Ok(produto);
         }
 
-        [Authorize] // Exige Token Administrativo
+        // [Authorize] // Exige Token Administrativo
         [HttpPost]
         public async Task<ActionResult<Produto>> CreateProduto([FromForm] ProdutoDTO novoProdutoDTO, IFormFile imagem)
         {
@@ -93,12 +93,23 @@ namespace Dunder_Store.Controllers
                 string urlServidor = $"{Request.Scheme}://{Request.Host}";
                 string imagemUrl = $"{urlServidor}/{nomePasta}/{nomeArquivo}";
 
+                // ✅ Se ProdutoPaiId for informado, é uma variação
+                if (!string.IsNullOrEmpty(novoProdutoDTO.produtoPaiId))
+                {
+                    var produtoPai = await dbContext.Produtos.FindAsync(novoProdutoDTO.produtoPaiId);
+                    if (produtoPai == null)
+                        return NotFound("Produto pai não encontrado para vincular a variação.");
+                }
+
                 var novoProduto = new Produto(
                     novoProdutoDTO.nome,
                     novoProdutoDTO.descricao,
                     novoProdutoDTO.preco,
                     novoProdutoDTO.codigoDeBarra,
-                    imagemUrl
+                    imagemUrl,
+                    novoProdutoDTO.cor,
+                    novoProdutoDTO.tamanho,
+                    novoProdutoDTO.produtoPaiId
                 );
 
                 await dbContext.Produtos.AddAsync(novoProduto);
@@ -112,7 +123,8 @@ namespace Dunder_Store.Controllers
             }
         }
 
-        [Authorize] // Exige Token Administrativo
+
+        // [Authorize] // Exige Token Administrativo
         [HttpPatch("{id}")]
         public async Task<IActionResult> UpdateProduto(string id, ProdutoDTO produtoAtualizadoDTO)
         {
@@ -141,7 +153,7 @@ namespace Dunder_Store.Controllers
             return NoContent();
         }
 
-        [Authorize] // Exige Token Administrativo
+        // [Authorize] // Exige Token Administrativo
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteProduto(string id)
         {

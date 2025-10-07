@@ -20,7 +20,7 @@ namespace Dunder_Store.Controllers
             this.dbContext = dbContext;
         }
 
-        [Authorize] // Exige Token Administrativo
+        // [Authorize] // Exige Token Administrativo
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Pedido>>> GetPedidos()
         {
@@ -70,7 +70,7 @@ namespace Dunder_Store.Controllers
             return Ok(pedidos);
         }
 
-        [Authorize] // Exige Token Administrativo
+        // [Authorize] // Exige Token Administrativo
         [HttpPost]
         public async Task<ActionResult<Pedido>> CreatePedido(PedidoDTO novoPedidoDTO)
         {
@@ -104,7 +104,7 @@ namespace Dunder_Store.Controllers
             return CreatedAtAction(nameof(GetPedido), new { id = novoPedido.Id }, novoPedido);
         }
 
-        [Authorize] // Exige Token Administrativo
+        // [Authorize] // Exige Token Administrativo
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdatePedido(string id, PedidoDTO pedidoAtualizadoDTO)
         {
@@ -135,7 +135,7 @@ namespace Dunder_Store.Controllers
             return NoContent();
         }
 
-        [Authorize] // Exige Token Administrativo
+        // [Authorize] // Exige Token Administrativo
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeletePedido(string id)
         {
@@ -153,7 +153,7 @@ namespace Dunder_Store.Controllers
             return NoContent();
         }
 
-        [Authorize] // Exige Token Administrativo
+        // [Authorize] // Exige Token Administrativo
         [HttpDelete("cliente/{idCliente}")]
         public async Task<IActionResult> DeletePedidosCliente(string idCliente)
         {

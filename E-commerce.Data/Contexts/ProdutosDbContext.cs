@@ -22,6 +22,13 @@ namespace Dunder_Store.Database
             modelBuilder.Entity<PedidoProduto>()
                 .HasKey(pp => new { pp.PedidoId, pp.ProdutoId });
 
+            // 🔹 Relacionamento Produto (pai) -> Variacoes
+            modelBuilder.Entity<Produto>()
+                .HasMany(p => p.Variacoes)
+                .WithOne(v => v.ProdutoPai)
+                .HasForeignKey(v => v.ProdutoPaiId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             // Relacionamento: PedidoProduto -> Pedido
             modelBuilder.Entity<PedidoProduto>()
                 .HasOne(pp => pp.Pedido)

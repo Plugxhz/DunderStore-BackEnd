@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Dunder_Store.Migrations
 {
     [DbContext(typeof(ProdutosDbContext))]
-    [Migration("20251001224948_InitialCreate")]
+    [Migration("20251006235040_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -101,6 +101,9 @@ namespace Dunder_Store.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
+                    b.Property<string>("Cor")
+                        .HasColumnType("longtext");
+
                     b.Property<string>("Descricao")
                         .IsRequired()
                         .HasColumnType("longtext");
@@ -113,9 +116,17 @@ namespace Dunder_Store.Migrations
                         .HasColumnType("longtext");
 
                     b.Property<decimal>("Preco")
-                        .HasColumnType("decimal(65,30)");
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("ProdutoPaiId")
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<string>("Tamanho")
+                        .HasColumnType("longtext");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ProdutoPaiId");
 
                     b.ToTable("Produtos");
                 });
@@ -150,6 +161,16 @@ namespace Dunder_Store.Migrations
                     b.Navigation("Cliente");
                 });
 
+            modelBuilder.Entity("Produto", b =>
+                {
+                    b.HasOne("Produto", "ProdutoPai")
+                        .WithMany("Variacoes")
+                        .HasForeignKey("ProdutoPaiId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("ProdutoPai");
+                });
+
             modelBuilder.Entity("Dunder_Store.Entities.Cliente", b =>
                 {
                     b.Navigation("Pedidos");
@@ -163,6 +184,8 @@ namespace Dunder_Store.Migrations
             modelBuilder.Entity("Produto", b =>
                 {
                     b.Navigation("PedidoProdutos");
+
+                    b.Navigation("Variacoes");
                 });
 #pragma warning restore 612, 618
         }

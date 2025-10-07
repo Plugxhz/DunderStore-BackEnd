@@ -50,4 +50,8 @@
     <None Include="wwwroot\produtos\f83cfd8b-87ed-490d-9406-2a49665b95e6.jpg" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="E-commerce.Data\Migrations\" />
+  </ItemGroup>
+
 </Project>
