@@ -1,0 +1,136 @@
+﻿using Dunder_Store.DTO;
+using Dunder_Store.Entities;
+using Dunder_Store.Interfaces.IServices;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Dunder_Store.Database;
+
+namespace Dunder_Store.Controllers
+{
+    [Route("api/[controller]")]
+    [ApiController]
+    public class ProdutoController : ControllerBase
+    {
+        private readonly IProdutoService _produtoService;
+        private readonly ProdutosDbContext _dbContext;
+
+        public ProdutoController(IProdutoService produtoService, ProdutosDbContext dbContext)
+        {
+            _produtoService = produtoService;
+            _dbContext = dbContext;
+        }
+
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<Produto>>> GetAllProdutos()
+         {
+            var produtos = await _produtoService.GetAllAsync();
+            if (produtos == null) return NotFound("Nenhum produto encontrado.");
+            return Ok(produtos);
+        }
+
+
+        [HttpGet("{id}")]
+        public async Task<ActionResult<Produto>> GetProdutoById(Guid id)
+        {
+            var produto = await _produtoService.GetByIdAsync(id);
+            if (produto is null) return NotFound("Produto não encontrado.");
+            return Ok(produto);
+        }
+
+        [HttpPost]
+        public async Task<ActionResult<Produto>> CreateProduto([FromForm] ProdutoDTO novoProdutoDTO, IFormFile imagem)
+        {
+            if (imagem == null || imagem.Length == 0)
+                return BadRequest("Imagem obrigatória.");
+
+            if (novoProdutoDTO.CategoriaId == null && !string.IsNullOrEmpty(novoProdutoDTO.CategoriaNome))
+            {
+                var categoria = await _dbContext.Categorias
+                    .FirstOrDefaultAsync(c => c.Nome.ToLower() == novoProdutoDTO.CategoriaNome.ToLower());
+
+                if (categoria == null)
+                    return BadRequest($"Categoria '{novoProdutoDTO.CategoriaNome}' não existe.");
+
+                novoProdutoDTO.CategoriaId = categoria.Id;
+            }
+
+            if (novoProdutoDTO.CategoriaId == null)
+                return BadRequest("Categoria obrigatória. Informe o nome ou o ID.");
+
+            string nomePasta = "produtos";
+            string caminhoDaPasta = Path.Combine("wwwroot", nomePasta);
+            Directory.CreateDirectory(caminhoDaPasta);
+
+            string nomeArquivo = $"{Guid.NewGuid()}{Path.GetExtension(imagem.FileName)}";
+            string caminhoCompleto = Path.Combine(caminhoDaPasta, nomeArquivo);
+
+            using var stream = new FileStream(caminhoCompleto, FileMode.Create);
+            await imagem.CopyToAsync(stream);
+
+            string urlServidor = $"{Request.Scheme}://{Request.Host}";
+            string imagemUrl = $"{urlServidor}/{nomePasta}/{nomeArquivo}";
+
+            var novoProduto = new Produto
+            {
+                Nome = novoProdutoDTO.nome,
+                Descricao = novoProdutoDTO.descricao,
+                Preco = novoProdutoDTO.preco,
+                CodigoDeBarra = novoProdutoDTO.codigoDeBarra,
+                ImagemURL = imagemUrl,
+                CategoriaId = novoProdutoDTO.CategoriaId.Value,
+                Cor = novoProdutoDTO.cor,
+                Tamanho = novoProdutoDTO.tamanho,
+                ProdutoPaiId = novoProdutoDTO.produtoPaiId
+            };
+
+            var produtoCriado = await _produtoService.CriarProdutoAsync(novoProduto);
+            return CreatedAtAction(nameof(GetProdutoById), new { id = produtoCriado.Id }, produtoCriado);
+        }
+
+        [HttpPatch("{id}")]
+        public async Task<IActionResult> UpdateProduto(Guid id, [FromForm] ProdutoPatchDTO dto)
+        {
+            var produto = await _produtoService.GetByIdAsync(id);
+            if (produto is null) return NotFound("Produto não encontrado.");
+
+            if (dto.CategoriaId == null && !string.IsNullOrEmpty(dto.CategoriaNome))
+            {
+                var categoria = await _dbContext.Categorias
+                    .FirstOrDefaultAsync(c => c.Nome.ToLower() == dto.CategoriaNome.ToLower());
+
+                if (categoria == null)
+                    return BadRequest($"Categoria '{dto.CategoriaNome}' não existe.");
+
+                dto.CategoriaId = categoria.Id;
+            }
+
+            produto.Nome = dto.nome ?? produto.Nome;
+            produto.Descricao = dto.descricao ?? produto.Descricao;
+            produto.Preco = dto.preco.HasValue ? dto.preco.Value : produto.Preco;
+            produto.CodigoDeBarra = dto.codigoDeBarra ?? produto.CodigoDeBarra;
+            produto.Cor = dto.cor ?? produto.Cor;
+            produto.Tamanho = dto.tamanho ?? produto.Tamanho;
+            produto.CategoriaId = dto.CategoriaId ?? produto.CategoriaId;
+            produto.ProdutoPaiId = dto.produtoPaiId ?? produto.ProdutoPaiId;
+
+            await _produtoService.AtualizarProdutoAsync(produto);
+            return NoContent();
+        }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteProduto(Guid id)
+        {
+            await _produtoService.RemoverProdutoAsync(id);
+            return NoContent();
+        }
+
+        [HttpDelete("todos")]
+        public async Task<IActionResult> DeleteTodosProdutos()
+        {
+            await _produtoService.RemoverTodosProdutosAsync();
+            return NoContent();
+        }
+
+
+    }
+}
