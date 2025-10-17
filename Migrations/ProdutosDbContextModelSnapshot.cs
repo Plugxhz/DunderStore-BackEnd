@@ -44,9 +44,9 @@ namespace Dunder_Store.Migrations
 
             modelBuilder.Entity("Dunder_Store.Entities.Cliente", b =>
                 {
-                    b.Property<string>("Id")
+                    b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("varchar(255)");
+                        .HasColumnType("char(36)");
 
                     b.Property<string>("Cep")
                         .IsRequired()
@@ -79,15 +79,17 @@ namespace Dunder_Store.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)");
 
-                    b.Property<string>("ClienteId")
-                        .IsRequired()
-                        .HasColumnType("varchar(255)");
+                    b.Property<Guid>("ClienteId")
+                        .HasColumnType("char(36)");
 
-                    b.Property<string>("ClienteId1")
-                        .HasColumnType("varchar(255)");
+                    b.Property<Guid?>("ClienteId1")
+                        .HasColumnType("char(36)");
 
                     b.Property<DateTime>("DataPedido")
                         .HasColumnType("datetime(6)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
@@ -96,6 +98,27 @@ namespace Dunder_Store.Migrations
                     b.HasIndex("ClienteId1");
 
                     b.ToTable("Pedidos");
+                });
+
+            modelBuilder.Entity("Dunder_Store.Entities.PedidoProduto", b =>
+                {
+                    b.Property<Guid>("PedidoId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("ProdutoId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)");
+
+                    b.Property<int>("Quantidade")
+                        .HasColumnType("int");
+
+                    b.HasKey("PedidoId", "ProdutoId");
+
+                    b.HasIndex("ProdutoId");
+
+                    b.ToTable("PedidoProdutos");
                 });
 
             modelBuilder.Entity("Dunder_Store.Entities.Produto", b =>
@@ -143,24 +166,6 @@ namespace Dunder_Store.Migrations
                     b.ToTable("Produtos");
                 });
 
-            modelBuilder.Entity("PedidoProduto", b =>
-                {
-                    b.Property<Guid>("PedidoId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<Guid>("ProdutoId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<int>("Quantidade")
-                        .HasColumnType("int");
-
-                    b.HasKey("PedidoId", "ProdutoId");
-
-                    b.HasIndex("ProdutoId");
-
-                    b.ToTable("PedidoProdutos");
-                });
-
             modelBuilder.Entity("Dunder_Store.Entities.Categoria", b =>
                 {
                     b.HasOne("Dunder_Store.Entities.Categoria", "CategoriaPai")
@@ -186,25 +191,7 @@ namespace Dunder_Store.Migrations
                     b.Navigation("Cliente");
                 });
 
-            modelBuilder.Entity("Dunder_Store.Entities.Produto", b =>
-                {
-                    b.HasOne("Dunder_Store.Entities.Categoria", "Categoria")
-                        .WithMany("Produtos")
-                        .HasForeignKey("CategoriaId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Dunder_Store.Entities.Produto", "ProdutoPai")
-                        .WithMany("Variacoes")
-                        .HasForeignKey("ProdutoPaiId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Categoria");
-
-                    b.Navigation("ProdutoPai");
-                });
-
-            modelBuilder.Entity("PedidoProduto", b =>
+            modelBuilder.Entity("Dunder_Store.Entities.PedidoProduto", b =>
                 {
                     b.HasOne("Dunder_Store.Entities.Pedido", "Pedido")
                         .WithMany("PedidoProdutos")
@@ -221,6 +208,24 @@ namespace Dunder_Store.Migrations
                     b.Navigation("Pedido");
 
                     b.Navigation("Produto");
+                });
+
+            modelBuilder.Entity("Dunder_Store.Entities.Produto", b =>
+                {
+                    b.HasOne("Dunder_Store.Entities.Categoria", "Categoria")
+                        .WithMany("Produtos")
+                        .HasForeignKey("CategoriaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Dunder_Store.Entities.Produto", "ProdutoPai")
+                        .WithMany("Variacoes")
+                        .HasForeignKey("ProdutoPaiId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Categoria");
+
+                    b.Navigation("ProdutoPai");
                 });
 
             modelBuilder.Entity("Dunder_Store.Entities.Categoria", b =>

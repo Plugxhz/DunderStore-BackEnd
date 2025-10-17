@@ -1,9 +1,9 @@
-﻿using Dunder_Store.Database;
-using Dunder_Store.DTO;
+﻿using Dunder_Store.DTO;
 using Dunder_Store.Entities;
-using Microsoft.AspNetCore.Http;
+using Dunder_Store.Interfaces.IServices;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Linq;
 
 namespace Dunder_Store.Controllers
 {
@@ -11,50 +11,42 @@ namespace Dunder_Store.Controllers
     [ApiController]
     public class ClienteController : ControllerBase
     {
-        private readonly ProdutosDbContext dbContext;
-        public ClienteController(ProdutosDbContext dbContext)
+        private readonly IClienteService _clienteService;
+
+        public ClienteController(IClienteService clienteService)
         {
-            this.dbContext = dbContext;
+            _clienteService = clienteService;
         }
 
         [HttpGet]
-        public ActionResult<IEnumerable<ClienteDTOOutput>> GetCliente()
+        public async Task<ActionResult<IEnumerable<ClienteDTOOutput>>> GetClientes()
         {
-            IEnumerable<ClienteDTOOutput> clientes = dbContext
-                .Clientes
-                .Select(
-                    c => new ClienteDTOOutput(c.Id, c.Nome, c.Cpf, c.Email, c.Cep)
-                );
+            var clientes = await _clienteService.GetAllAsync();
+            var clientesDTO = clientes
+                .Select(c => new ClienteDTOOutput(c.Id, c.Nome, c.Cpf, c.Email, c.Cep));
 
-            return Ok(clientes);
+            return Ok(clientesDTO);
         }
 
-
-        [HttpGet("{id}")]
-        public ActionResult<Cliente> GetClienteId(string id)
+        [HttpGet("{id:guid}")]
+        public async Task<ActionResult<ClienteDTOOutput>> GetClienteId(Guid id)
         {
-            Cliente? cliente = dbContext
-                .Clientes
-                .FirstOrDefault(c => c.Id == id);
-            if (cliente is null)
-            {
+            var cliente = await _clienteService.GetByIdAsync(id);
+            if (cliente == null)
                 return NotFound();
-            }
 
-            ClienteDTOOutput clienteDTO = new ClienteDTOOutput(cliente.Id, cliente.Nome, cliente.Cpf, cliente.Email, cliente.Cep);
-
-            return Ok(cliente);
+            var clienteDTO = new ClienteDTOOutput(cliente.Id, cliente.Nome, cliente.Cpf, cliente.Email, cliente.Cep);
+            return Ok(clienteDTO);
         }
 
         [HttpPost]
-        public ActionResult<ClienteDTOInput> CreateCliente([FromForm] ClienteDTOInput novoClienteDTO)
+        public async Task<ActionResult<ClienteDTOOutput>> CreateCliente([FromForm] ClienteDTOInput novoClienteDTO)
         {
-            if (dbContext.Clientes.Any(cliente => cliente.Cpf.Equals(novoClienteDTO.cpf)))
-            {
+            var clientes = await _clienteService.GetAllAsync();
+            if (clientes.Any(c => c.Cpf == novoClienteDTO.cpf))
                 return BadRequest("Já existe um cliente com este CPF");
-            }
 
-            Cliente novoCliente = new Cliente(
+            var novoCliente = new Cliente(
                 novoClienteDTO.nome,
                 novoClienteDTO.cpf,
                 novoClienteDTO.email,
@@ -62,93 +54,50 @@ namespace Dunder_Store.Controllers
                 novoClienteDTO.cep
             );
 
-            dbContext.Clientes.Add(novoCliente);
-            dbContext.SaveChanges();
+            await _clienteService.CriarClienteAsync(novoCliente);
 
-            return CreatedAtAction(nameof(CreateCliente), novoCliente);
+            var clienteDTO = new ClienteDTOOutput(novoCliente.Id, novoCliente.Nome, novoCliente.Cpf, novoCliente.Email, novoCliente.Cep);
+            return CreatedAtAction(nameof(GetClienteId), new { id = novoCliente.Id }, clienteDTO);
         }
 
-
-
         [HttpPost("login")]
-        public ActionResult<ClienteDTOOutput> LoginCliente([FromForm] LoginDTO loginDTO)
+        public async Task<ActionResult<ClienteDTOOutput>> LoginCliente([FromForm] LoginDTO loginDTO)
         {
-            Cliente? cliente = dbContext
-                .Clientes
-                .FirstOrDefault(c => c.Email == loginDTO.email && c.Senha == loginDTO.senha);
+            var clientes = await _clienteService.GetAllAsync();
+            var cliente = clientes.FirstOrDefault(c => c.Email == loginDTO.email && c.Senha == loginDTO.senha);
 
-            if (cliente is null)
-            {
+            if (cliente == null)
                 return Unauthorized("Email ou senha inválidos");
-            }
 
-            ClienteDTOOutput clienteDTO = new ClienteDTOOutput(
-                cliente.Id,
-                cliente.Nome,
-                cliente.Cpf,
-                cliente.Email,
-                cliente.Cep
-            );
-
+            var clienteDTO = new ClienteDTOOutput(cliente.Id, cliente.Nome, cliente.Cpf, cliente.Email, cliente.Cep);
             return Ok(clienteDTO);
         }
 
-
-
-        [HttpPatch("{id}")]
-        public IActionResult UpdateCliente(string id, ClienteDTOInput clienteAtualizadoDTO)
+        [HttpPatch("{id:guid}")]
+        public async Task<IActionResult> UpdateCliente(Guid id, ClienteDTOInput clienteAtualizadoDTO)
         {
-            Cliente? clienteEncontrado =
-                dbContext
-                .Clientes
-                .FirstOrDefault(c => c.Id == id);
-
-            if (clienteEncontrado is null)
-            {
+            var cliente = await _clienteService.GetByIdAsync(id);
+            if (cliente == null)
                 return NotFound();
-            }
-            if (dbContext.Clientes.Any(cliente => cliente.Id != id && cliente.Cpf.Equals(clienteAtualizadoDTO.cpf)))
-            {
+
+            var clientes = await _clienteService.GetAllAsync();
+            if (clientes.Any(c => c.Id != id && c.Cpf == clienteAtualizadoDTO.cpf))
                 return BadRequest("Já existe um cliente com esse CPF");
-            }
 
-            // Se o valor for null não altera
-            if (clienteAtualizadoDTO.nome != "string") { clienteEncontrado.Nome = clienteAtualizadoDTO.nome; }
-            if (clienteAtualizadoDTO.cpf != "string") { clienteEncontrado.Cpf = clienteAtualizadoDTO.cpf; }
-            if (clienteAtualizadoDTO.email != "string") { clienteEncontrado.Email = clienteAtualizadoDTO.email; }
-            if (clienteAtualizadoDTO.senha != "string") { clienteEncontrado.Senha = clienteAtualizadoDTO.senha; }
-            if (clienteAtualizadoDTO.cep != "string") { clienteEncontrado.Cep = clienteAtualizadoDTO.cep; }
+            if (!string.IsNullOrWhiteSpace(clienteAtualizadoDTO.nome)) cliente.Nome = clienteAtualizadoDTO.nome;
+            if (!string.IsNullOrWhiteSpace(clienteAtualizadoDTO.cpf)) cliente.Cpf = clienteAtualizadoDTO.cpf;
+            if (!string.IsNullOrWhiteSpace(clienteAtualizadoDTO.email)) cliente.Email = clienteAtualizadoDTO.email;
+            if (!string.IsNullOrWhiteSpace(clienteAtualizadoDTO.senha)) cliente.Senha = clienteAtualizadoDTO.senha;
+            if (!string.IsNullOrWhiteSpace(clienteAtualizadoDTO.cep)) cliente.Cep = clienteAtualizadoDTO.cep;
 
-            dbContext.SaveChanges();
-
+            await _clienteService.AtualizarClienteAsync(cliente);
             return NoContent();
         }
 
-
-        [HttpDelete("{id}")]
-        public IActionResult DeleteCliente(string id)
+        [HttpDelete("{id:guid}")]
+        public async Task<IActionResult> DeleteCliente(Guid id)
         {
-            Cliente? clienteEncontrado =
-                dbContext
-                .Clientes
-                .Include(c => c.Pedidos)
-                    .ThenInclude(p => p.PedidoProdutos) // Inclui os produtos dos pedidos do cliente
-                .FirstOrDefault(c => c.Id == id);
-
-            if (clienteEncontrado == null)
-            {
-                return NotFound();
-            }
-
-            foreach (Pedido pedido in clienteEncontrado.Pedidos)
-            {
-                pedido.PedidoProdutos.Clear(); // Limpa os produtos do pedido antes de remover
-                dbContext.Pedidos.Remove(pedido);
-            }
-
-            dbContext.Clientes.Remove(clienteEncontrado);
-            dbContext.SaveChanges();
-
+            await _clienteService.RemoverClienteAsync(id);
             return NoContent();
         }
     }

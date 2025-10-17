@@ -18,7 +18,7 @@ namespace Dunder_Store.Services
             return await _clienteRepository.GetAllAsync();
         }
 
-        public async Task<Cliente?> GetByIdAsync(string id)
+        public async Task<Cliente?> GetByIdAsync(Guid id)
         {
             return await _clienteRepository.GetByIdAsync(id);
         }
@@ -34,7 +34,7 @@ namespace Dunder_Store.Services
             await _clienteRepository.UpdateAsync(cliente);
         }
 
-        public async Task RemoverClienteAsync(string id)
+        public async Task RemoverClienteAsync(Guid id)
         {
             var cliente = await _clienteRepository.GetByIdAsync(id);
             if (cliente != null)

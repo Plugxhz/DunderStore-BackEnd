@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Dunder_Store.Migrations
 {
     [DbContext(typeof(ProdutosDbContext))]
-    [Migration("20251017042846_InitialCreate")]
+    [Migration("20251017065806_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -47,9 +47,9 @@ namespace Dunder_Store.Migrations
 
             modelBuilder.Entity("Dunder_Store.Entities.Cliente", b =>
                 {
-                    b.Property<string>("Id")
+                    b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("varchar(255)");
+                        .HasColumnType("char(36)");
 
                     b.Property<string>("Cep")
                         .IsRequired()
@@ -82,15 +82,17 @@ namespace Dunder_Store.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)");
 
-                    b.Property<string>("ClienteId")
-                        .IsRequired()
-                        .HasColumnType("varchar(255)");
+                    b.Property<Guid>("ClienteId")
+                        .HasColumnType("char(36)");
 
-                    b.Property<string>("ClienteId1")
-                        .HasColumnType("varchar(255)");
+                    b.Property<Guid?>("ClienteId1")
+                        .HasColumnType("char(36)");
 
                     b.Property<DateTime>("DataPedido")
                         .HasColumnType("datetime(6)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
@@ -108,6 +110,12 @@ namespace Dunder_Store.Migrations
 
                     b.Property<Guid>("ProdutoId")
                         .HasColumnType("char(36)");
+
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)");
+
+                    b.Property<int>("Quantidade")
+                        .HasColumnType("int");
 
                     b.HasKey("PedidoId", "ProdutoId");
 

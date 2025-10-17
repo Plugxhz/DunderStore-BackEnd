@@ -11,21 +11,19 @@
 
     public class ClienteDTOOutput
     {
-        public string Id { get; set; } = string.Empty;
+        public Guid Id { get; set; }  // ✅ Agora é Guid
         public string Nome { get; set; } = string.Empty;
         public string Cpf { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
-        public string Senha { get; set; } = string.Empty;
         public string Cep { get; set; } = string.Empty;
 
-        public ClienteDTOOutput(string id, string nome, string cpf, string email, string cep) 
+        public ClienteDTOOutput(Guid id, string nome, string cpf, string email, string cep)
         {
-            this.Id = id;
-            this.Nome = nome;
-            this.Cpf = cpf;
-            this.Email = email;
-            this.Cep = cep;
+            Id = id;
+            Nome = nome;
+            Cpf = cpf;
+            Email = email;
+            Cep = cep;
         }
-
     }
 }

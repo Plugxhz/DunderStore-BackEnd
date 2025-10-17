@@ -1,5 +1,4 @@
-﻿using Dunder_Store.Entities;
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Dunder_Store.Entities
@@ -11,21 +10,28 @@ namespace Dunder_Store.Entities
         public Guid Id { get; set; } = Guid.NewGuid();
 
         [Required]
-        public Cliente Cliente { get; set; }
+        public Guid ClienteId { get; set; }
+
+        [ForeignKey(nameof(ClienteId))]
+        public Cliente Cliente { get; set; } = null!;
 
         [Required]
         public DateTime DataPedido { get; set; }
 
-        // RELACIONAMENTO N:N via PedidoProduto
+        [Required]
+        public PedidoStatus Status { get; set; } = PedidoStatus.Carrinho;
+
         public List<PedidoProduto> PedidoProdutos { get; set; } = new();
 
         [NotMapped]
-        public decimal ValorTotal => PedidoProdutos.Sum(pp => pp.Produto.Preco);
+        public decimal ValorTotal => PedidoProdutos.Sum(pp => pp.Produto.Preco * pp.Quantidade);
 
         public Pedido(Cliente cliente, DateTime data)
         {
             Cliente = cliente;
+            ClienteId = cliente.Id;
             DataPedido = data;
+            Status = PedidoStatus.Carrinho;
         }
 
         private Pedido() { }

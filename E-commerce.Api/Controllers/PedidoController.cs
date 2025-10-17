@@ -3,7 +3,6 @@ using Dunder_Store.DTO;
 using Dunder_Store.Entities;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Authorization;
 
 namespace Dunder_Store.Controllers
 {
@@ -18,7 +17,6 @@ namespace Dunder_Store.Controllers
             this.dbContext = dbContext;
         }
 
-        // [Authorize] // Exige Token Administrativo
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Pedido>>> GetPedidos()
         {
@@ -34,16 +32,13 @@ namespace Dunder_Store.Controllers
             return Ok(pedidos);
         }
 
-        [HttpGet("{id}")]
-        public async Task<ActionResult<Pedido>> GetPedido(string id)
+        [HttpGet("{id:guid}")]
+        public async Task<ActionResult<Pedido>> GetPedido(Guid id)
         {
-            if (!Guid.TryParse(id, out var guidId))
-                return BadRequest("ID inválido.");
-
             var pedido = await dbContext.Pedidos
                 .Include(p => p.PedidoProdutos).ThenInclude(pp => pp.Produto)
                 .Include(p => p.Cliente)
-                .FirstOrDefaultAsync(p => p.Id == guidId);
+                .FirstOrDefaultAsync(p => p.Id == id);
 
             if (pedido == null)
                 return NotFound("Pedido não encontrado.");
@@ -51,22 +46,22 @@ namespace Dunder_Store.Controllers
             return Ok(pedido);
         }
 
-        [HttpGet("cliente/{idCliente}")]
-        public async Task<ActionResult<IEnumerable<Pedido>>> GetPedidosPorCliente(string idCliente)
+        [HttpGet("cliente/{clienteId:guid}")]
+        public async Task<ActionResult<IEnumerable<Pedido>>> GetPedidosPorCliente(Guid clienteId, [FromQuery] PedidoStatus? status = null)
         {
-            if (!Guid.TryParse(idCliente, out var guidClienteId))
-                return BadRequest("ID de cliente inválido.");
-
-            var cliente = await dbContext.Clientes.FirstOrDefaultAsync(c => c.Id.Equals(guidClienteId));
+            var cliente = await dbContext.Clientes.FindAsync(clienteId);
             if (cliente == null)
                 return BadRequest("Cliente não encontrado.");
 
-            var pedidos = await dbContext.Pedidos
+            var query = dbContext.Pedidos
                 .Include(p => p.PedidoProdutos).ThenInclude(pp => pp.Produto)
                 .Include(p => p.Cliente)
-                .Where(p => p.Cliente.Id.Equals(guidClienteId))
-                .OrderByDescending(p => p.DataPedido)
-                .ToListAsync();
+                .Where(p => p.ClienteId == clienteId);
+
+            if (status.HasValue)
+                query = query.Where(p => p.Status == status.Value);
+
+            var pedidos = await query.OrderByDescending(p => p.DataPedido).ToListAsync();
 
             if (!pedidos.Any())
                 return NoContent();
@@ -75,30 +70,25 @@ namespace Dunder_Store.Controllers
         }
 
         [HttpPost]
-        // [Authorize] // Exige Token Administrativo
         public async Task<ActionResult<Pedido>> CreatePedido(PedidoDTO novoPedidoDTO)
         {
-            // 1️⃣ Validação básica
             if (novoPedidoDTO.produtos == null || !novoPedidoDTO.produtos.Any())
                 return BadRequest("É necessário enviar a lista de produtos.");
 
-            // 2️⃣ Buscar cliente
             var cliente = await dbContext.Clientes.FirstOrDefaultAsync(c => c.Cpf == novoPedidoDTO.clientecpf);
             if (cliente == null)
                 return BadRequest("Cliente inválido.");
 
-            // 3️⃣ Buscar produtos pelo código de barras
             var codigos = novoPedidoDTO.produtos.Select(p => p.CodigoDeBarra).ToList();
-
-            var produtosEncontrados = await dbContext.Produtos
-                .Where(p => codigos.Contains(p.CodigoDeBarra))
-                .ToListAsync();
+            var produtosEncontrados = await dbContext.Produtos.Where(p => codigos.Contains(p.CodigoDeBarra)).ToListAsync();
 
             if (produtosEncontrados.Count != novoPedidoDTO.produtos.Count)
                 return BadRequest("Um ou mais produtos não foram encontrados.");
 
-            // 4️⃣ Criar pedido e associar produtos
-            var novoPedido = new Pedido(cliente, DateTime.Now);
+            var novoPedido = new Pedido(cliente, DateTime.Now)
+            {
+                Status = PedidoStatus.Carrinho
+            };
 
             foreach (var produtoDTO in novoPedidoDTO.produtos)
             {
@@ -114,27 +104,67 @@ namespace Dunder_Store.Controllers
                 }
             }
 
-            // 5️⃣ Persistir no banco
             await dbContext.Pedidos.AddAsync(novoPedido);
             await dbContext.SaveChangesAsync();
 
-            // 6️⃣ Retornar pedido criado
             return CreatedAtAction(nameof(GetPedido), new { id = novoPedido.Id }, novoPedido);
         }
 
-        // [Authorize] // Exige Token Administrativo
-        [HttpPut("{id}")]
-        public async Task<IActionResult> UpdatePedido(string id, PedidoDTO pedidoAtualizadoDTO)
+        [HttpGet("carrinho/{clienteId:guid}")]
+        public async Task<ActionResult<Pedido>> GetCarrinhoPorCliente(Guid clienteId)
         {
-            if (!Guid.TryParse(id, out var guidId))
-                return BadRequest("ID inválido.");
+            var carrinho = await dbContext.Pedidos
+                .Include(p => p.PedidoProdutos).ThenInclude(pp => pp.Produto)
+                .Include(p => p.Cliente)
+                .FirstOrDefaultAsync(p => p.ClienteId == clienteId && p.Status == PedidoStatus.Carrinho);
 
+            if (carrinho == null)
+            {
+                var cliente = await dbContext.Clientes.FindAsync(clienteId);
+                if (cliente == null)
+                    return NotFound("Cliente não encontrado.");
+
+                carrinho = new Pedido(cliente, DateTime.Now)
+                {
+                    Status = PedidoStatus.Carrinho
+                };
+
+                await dbContext.Pedidos.AddAsync(carrinho);
+                await dbContext.SaveChangesAsync();
+            }
+
+            return Ok(carrinho);
+        }
+
+        [HttpPost("finalizar/{id:guid}")]
+        public async Task<IActionResult> FinalizarPedido(Guid id)
+        {
+            var pedido = await dbContext.Pedidos.FindAsync(id);
+            if (pedido == null)
+                return NotFound("Pedido não encontrado.");
+
+            if (pedido.Status != PedidoStatus.Carrinho)
+                return BadRequest("Pedido já está finalizado.");
+
+            pedido.Status = PedidoStatus.Finalizado;
+            pedido.DataPedido = DateTime.Now;
+
+            await dbContext.SaveChangesAsync();
+            return NoContent();
+        }
+
+        [HttpPut("{id:guid}")]
+        public async Task<IActionResult> UpdatePedido(Guid id, PedidoDTO pedidoAtualizadoDTO)
+        {
             var pedido = await dbContext.Pedidos
                 .Include(p => p.PedidoProdutos).ThenInclude(pp => pp.Produto)
-                .FirstOrDefaultAsync(p => p.Id == guidId);
+                .FirstOrDefaultAsync(p => p.Id == id);
 
             if (pedido == null)
                 return NotFound("Pedido não encontrado.");
+
+            if (pedido.Status != PedidoStatus.Carrinho)
+                return BadRequest("Não é possível alterar um pedido que já foi finalizado.");
 
             if (pedidoAtualizadoDTO.produtos == null || !pedidoAtualizadoDTO.produtos.Any())
                 return BadRequest("É necessário enviar a lista de produtos.");
@@ -162,17 +192,12 @@ namespace Dunder_Store.Controllers
             return NoContent();
         }
 
-
-        // [Authorize] // Exige Token Administrativo
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeletePedido(string id)
+        [HttpDelete("{id:guid}")]
+        public async Task<IActionResult> DeletePedido(Guid id)
         {
-            if (!Guid.TryParse(id, out var guidId))
-                return BadRequest("ID inválido.");
-
             var pedido = await dbContext.Pedidos
                 .Include(p => p.PedidoProdutos)
-                .FirstOrDefaultAsync(p => p.Id == guidId);
+                .FirstOrDefaultAsync(p => p.Id == id);
 
             if (pedido == null)
                 return NotFound("Pedido não encontrado.");
@@ -184,20 +209,16 @@ namespace Dunder_Store.Controllers
             return NoContent();
         }
 
-        // [Authorize] // Exige Token Administrativo
-        [HttpDelete("cliente/{idCliente}")]
-        public async Task<IActionResult> DeletePedidosCliente(string idCliente)
+        [HttpDelete("cliente/{clienteId:guid}")]
+        public async Task<IActionResult> DeletePedidosCliente(Guid clienteId)
         {
-            if (!Guid.TryParse(idCliente, out var guidClienteId))
-                return BadRequest("ID de cliente inválido.");
-
-            var cliente = await dbContext.Clientes.FirstOrDefaultAsync(c => c.Id.Equals(guidClienteId));
+            var cliente = await dbContext.Clientes.FindAsync(clienteId);
             if (cliente == null)
                 return BadRequest("Cliente não encontrado.");
 
             var pedidos = await dbContext.Pedidos
                 .Include(p => p.PedidoProdutos)
-                .Where(p => p.Cliente.Id.Equals(guidClienteId))
+                .Where(p => p.ClienteId == clienteId)
                 .ToListAsync();
 
             if (!pedidos.Any())

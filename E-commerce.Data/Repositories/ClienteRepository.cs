@@ -19,7 +19,7 @@ namespace Dunder_Store.Data.Repositories
             return await _dbContext.Clientes.ToListAsync();
         }
 
-        public async Task<Cliente?> GetByIdAsync(string id)
+        public async Task<Cliente?> GetByIdAsync(Guid id)
         {
             return await _dbContext.Clientes.FirstOrDefaultAsync(c => c.Id == id);
         }
