@@ -21,9 +21,15 @@ namespace Dunder_Store.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Produto>>> GetAllProdutos()
-         {
-            var produtos = await _produtoService.GetAllAsync();
+        public async Task<ActionResult<Paginador<Produto>>> GetAllProdutos(
+            string? nome = null,
+            string? cor = null,
+            string? tamanho = null,
+            string? categoria = null,
+            int pagina = 1,
+            int itensPorPagina = 10)
+        {
+            var produtos = await _produtoService.GetAllAsync(nome, cor, tamanho, categoria, pagina, itensPorPagina);
             if (produtos == null) return NotFound("Nenhum produto encontrado.");
             return Ok(produtos);
         }

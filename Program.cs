@@ -1,4 +1,4 @@
-using Dunder_Store.Database;
+Ôªøusing Dunder_Store.Database;
 using Dunder_Store.Interfaces.IRepositories;
 using Dunder_Store.Interfaces.IServices;
 using Dunder_Store.Data.Repositories;
@@ -20,7 +20,7 @@ namespace WebApplication1
             var builder = WebApplication.CreateBuilder(args);
 
             // -------------------------------
-            // CONFIGURA«√O DE SERVI«OS
+            // CONFIGURA√á√ÉO DE SERVI√áOS
             // -------------------------------
             builder.Services.AddControllers().AddJsonOptions(options =>
             {
@@ -56,25 +56,34 @@ namespace WebApplication1
                 });
             });
 
-            // CORS
+            // -------------------------------
+            // CONFIGURA√á√ÉO DE CORS (https + vue)
+            // -------------------------------
             var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
             builder.Services.AddCors(options =>
             {
                 options.AddPolicy(name: MyAllowSpecificOrigins, policy =>
                 {
-                    policy.WithOrigins("http://localhost:5173")
-                          .AllowAnyHeader()
-                          .AllowAnyMethod()
-                          .AllowCredentials();
+                    policy.WithOrigins(
+                            "http://localhost:5173",   // Frontend Vue
+                            "https://localhost:7136"   // Backend HTTPS
+                        )
+                        .AllowAnyHeader()
+                        .AllowAnyMethod()
+                        .AllowCredentials();
                 });
             });
 
+            // -------------------------------
             // DATABASE
+            // -------------------------------
             var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
             builder.Services.AddDbContext<ProdutosDbContext>(options =>
                 options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
 
-            // INJE«√O DE DEPEND NCIA (SERVI«OS E REPOSIT”RIOS)
+            // -------------------------------
+            // INJE√á√ÉO DE DEPEND√äNCIA
+            // -------------------------------
             builder.Services.AddScoped<IProdutoService, ProdutoService>();
             builder.Services.AddScoped<IPedidoService, PedidoService>();
             builder.Services.AddScoped<IClienteService, ClienteService>();
@@ -85,9 +94,9 @@ namespace WebApplication1
             builder.Services.AddScoped<IProdutoRepository, ProdutoRepository>();
             builder.Services.AddScoped<IPedidoProdutoRepository, PedidoProdutoRepository>();
 
-
-
+            // -------------------------------
             // JWT
+            // -------------------------------
             var jwtSection = builder.Configuration.GetSection("Jwt");
             var jwtKey = jwtSection.GetValue<string>("Key");
             var jwtIssuer = jwtSection.GetValue<string>("Issuer");
@@ -100,7 +109,7 @@ namespace WebApplication1
             })
             .AddJwtBearer(options =>
             {
-                options.RequireHttpsMetadata = false;
+                options.RequireHttpsMetadata = true;
                 options.SaveToken = true;
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
@@ -120,7 +129,7 @@ namespace WebApplication1
             });
 
             // -------------------------------
-            // PIPELINE DA APLICA«√O
+            // PIPELINE DA APLICA√á√ÉO
             // -------------------------------
             var app = builder.Build();
 
@@ -129,6 +138,9 @@ namespace WebApplication1
                 app.UseSwagger();
                 app.UseSwaggerUI();
             }
+
+            // ‚ö†Ô∏è CORS deve vir antes de autentica√ß√£o
+            app.UseCors(MyAllowSpecificOrigins);
 
             app.UseHttpsRedirection();
 
@@ -141,9 +153,9 @@ namespace WebApplication1
                 RequestPath = "/produtos"
             });
 
-            app.UseCors(MyAllowSpecificOrigins);
             app.UseAuthentication();
             app.UseAuthorization();
+
             app.MapControllers();
 
             app.Run();
