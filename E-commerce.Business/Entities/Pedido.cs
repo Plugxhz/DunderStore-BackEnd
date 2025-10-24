@@ -23,8 +23,28 @@ namespace Dunder_Store.Entities
 
         public List<PedidoProduto> PedidoProdutos { get; set; } = new();
 
+        // RELAÇÃO COM CUPOM
+        public Guid? CupomId { get; set; }
+        [ForeignKey(nameof(CupomId))]
+        public Cupom? Cupom { get; set; }
+
         [NotMapped]
-        public decimal ValorTotal => PedidoProdutos.Sum(pp => pp.Produto.Preco * pp.Quantidade);
+        public decimal ValorTotalSemDesconto => PedidoProdutos.Sum(pp => pp.Produto.Preco * pp.Quantidade);
+
+        [NotMapped]
+        public decimal ValorTotal
+        {
+            get
+            {
+                var total = ValorTotalSemDesconto;
+                if (Cupom != null && Cupom.Ativo && Cupom.DataExpiracao >= DateTime.Now)
+                {
+                    var desconto = (Cupom.DescontoPercentual / 100m) * total;
+                    total -= desconto;
+                }
+                return total;
+            }
+        }
 
         public Pedido(Cliente cliente, DateTime data)
         {

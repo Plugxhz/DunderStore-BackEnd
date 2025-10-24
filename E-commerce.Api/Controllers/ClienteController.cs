@@ -19,13 +19,33 @@ namespace Dunder_Store.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<ClienteDTOOutput>>> GetClientes()
+        public async Task<ActionResult<Paginador<ClienteDTOOutput>>> GetClientes(
+            [FromQuery] int pagina = 1,
+            [FromQuery] int tamanhoPagina = 10)
         {
-            var clientes = await _clienteService.GetAllAsync();
-            var clientesDTO = clientes
-                .Select(c => new ClienteDTOOutput(c.Id, c.Nome, c.Cpf, c.Email, c.Cep));
+            if (pagina <= 0) pagina = 1;
+            if (tamanhoPagina <= 0) tamanhoPagina = 10;
 
-            return Ok(clientesDTO);
+            var clientes = await _clienteService.GetAllAsync();
+            var totalItens = clientes.Count();
+
+            var clientesPaginados = clientes
+                .Skip((pagina - 1) * tamanhoPagina)
+                .Take(tamanhoPagina)
+                .Select(c => new ClienteDTOOutput(c.Id, c.Nome, c.Cpf, c.Email, c.Cep))
+                .ToList();
+
+            if (!clientesPaginados.Any())
+                return NoContent();
+
+            var resultado = new Paginador<ClienteDTOOutput>(
+                clientesPaginados,
+                totalItens,
+                pagina,
+                tamanhoPagina
+            );
+
+            return Ok(resultado);
         }
 
         [HttpGet("{id:guid}")]

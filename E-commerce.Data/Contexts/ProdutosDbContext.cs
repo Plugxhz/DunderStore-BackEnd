@@ -10,6 +10,8 @@ namespace Dunder_Store.Database
         public DbSet<Pedido> Pedidos { get; set; }
         public DbSet<PedidoProduto> PedidoProdutos { get; set; }
         public DbSet<Categoria> Categorias { get; set; }
+        public DbSet<Cupom> Cupons { get; set; }
+
 
         public ProdutosDbContext(DbContextOptions<ProdutosDbContext> options)
             : base(options) { }

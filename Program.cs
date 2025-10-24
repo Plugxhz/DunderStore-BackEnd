@@ -88,11 +88,14 @@ namespace WebApplication1
             builder.Services.AddScoped<IPedidoService, PedidoService>();
             builder.Services.AddScoped<IClienteService, ClienteService>();
             builder.Services.AddScoped<ICategoriaService, CategoriaService>();
+            builder.Services.AddScoped<ICupomService, CupomService>();
+
 
             builder.Services.AddScoped<IClienteRepository, ClienteRepository>();
             builder.Services.AddScoped<IPedidoRepository, PedidoRepository>();
             builder.Services.AddScoped<IProdutoRepository, ProdutoRepository>();
             builder.Services.AddScoped<IPedidoProdutoRepository, PedidoProdutoRepository>();
+            builder.Services.AddScoped<ICupomRepository, CupomRepository>();
 
             // -------------------------------
             // JWT

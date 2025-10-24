@@ -6,6 +6,6 @@ namespace Dunder_Store.DTO
     {
         public string clientecpf { get; set; }
         public List<PedidoProdutoDTO> produtos { get; set; }
+        public string? cupomCodigo { get; set; } // opcional
     }
-
 }

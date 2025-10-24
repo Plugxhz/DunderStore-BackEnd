@@ -94,11 +94,13 @@ namespace Dunder_Store.Controllers
         }
 
         [HttpPatch("{id}")]
-        public async Task<IActionResult> UpdateProduto(Guid id, [FromForm] ProdutoPatchDTO dto)
+        public async Task<IActionResult> UpdateProduto(Guid id, [FromForm] ProdutoPatchDTO dto, IFormFile? novaImagem)
         {
             var produto = await _produtoService.GetByIdAsync(id);
-            if (produto is null) return NotFound("Produto não encontrado.");
+            if (produto is null)
+                return NotFound("Produto não encontrado.");
 
+            // Atualiza categoria se foi informada pelo nome
             if (dto.CategoriaId == null && !string.IsNullOrEmpty(dto.CategoriaNome))
             {
                 var categoria = await _dbContext.Categorias
@@ -110,6 +112,7 @@ namespace Dunder_Store.Controllers
                 dto.CategoriaId = categoria.Id;
             }
 
+            // Atualiza campos básicos
             produto.Nome = dto.nome ?? produto.Nome;
             produto.Descricao = dto.descricao ?? produto.Descricao;
             produto.Preco = dto.preco.HasValue ? dto.preco.Value : produto.Preco;
@@ -118,6 +121,33 @@ namespace Dunder_Store.Controllers
             produto.Tamanho = dto.tamanho ?? produto.Tamanho;
             produto.CategoriaId = dto.CategoriaId ?? produto.CategoriaId;
             produto.ProdutoPaiId = dto.produtoPaiId ?? produto.ProdutoPaiId;
+
+            // 🔹 Se foi enviada uma nova imagem, substitui a antiga
+            if (novaImagem != null && novaImagem.Length > 0)
+            {
+                string nomePasta = "produtos";
+                string caminhoDaPasta = Path.Combine("wwwroot", nomePasta);
+                Directory.CreateDirectory(caminhoDaPasta);
+
+                // Deleta imagem antiga, se existir
+                if (!string.IsNullOrEmpty(produto.ImagemURL))
+                {
+                    var nomeAntigo = Path.GetFileName(new Uri(produto.ImagemURL).AbsolutePath);
+                    var caminhoAntigo = Path.Combine(caminhoDaPasta, nomeAntigo);
+                    if (System.IO.File.Exists(caminhoAntigo))
+                        System.IO.File.Delete(caminhoAntigo);
+                }
+
+                // Salva nova imagem
+                string nomeArquivo = $"{Guid.NewGuid()}{Path.GetExtension(novaImagem.FileName)}";
+                string caminhoCompleto = Path.Combine(caminhoDaPasta, nomeArquivo);
+
+                using var stream = new FileStream(caminhoCompleto, FileMode.Create);
+                await novaImagem.CopyToAsync(stream);
+
+                string urlServidor = $"{Request.Scheme}://{Request.Host}";
+                produto.ImagemURL = $"{urlServidor}/{nomePasta}/{nomeArquivo}";
+            }
 
             await _produtoService.AtualizarProdutoAsync(produto);
             return NoContent();

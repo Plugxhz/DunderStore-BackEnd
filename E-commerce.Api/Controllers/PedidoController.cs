@@ -18,36 +18,77 @@ namespace Dunder_Store.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Pedido>>> GetPedidos()
+        public async Task<ActionResult<Paginador<Pedido>>> GetPedidos(
+            [FromQuery] int pagina = 1,
+            [FromQuery] int tamanhoPagina = 10)
         {
+            if (pagina <= 0) pagina = 1;
+            if (tamanhoPagina <= 0) tamanhoPagina = 10;
+
+            var totalItens = await dbContext.Pedidos.CountAsync();
+
             var pedidos = await dbContext.Pedidos
                 .Include(p => p.Cliente)
                 .Include(p => p.PedidoProdutos).ThenInclude(pp => pp.Produto)
                 .OrderByDescending(p => p.DataPedido)
+                .Skip((pagina - 1) * tamanhoPagina)
+                .Take(tamanhoPagina)
                 .ToListAsync();
 
             if (!pedidos.Any())
                 return NoContent();
 
-            return Ok(pedidos);
+            var resultado = new Paginador<Pedido>(pedidos, totalItens, pagina, tamanhoPagina);
+            return Ok(resultado);
         }
 
         [HttpGet("{id:guid}")]
-        public async Task<ActionResult<Pedido>> GetPedido(Guid id)
+        public async Task<ActionResult<object>> GetPedido(Guid id)
         {
             var pedido = await dbContext.Pedidos
                 .Include(p => p.PedidoProdutos).ThenInclude(pp => pp.Produto)
                 .Include(p => p.Cliente)
+                .Include(p => p.Cupom)
                 .FirstOrDefaultAsync(p => p.Id == id);
 
             if (pedido == null)
                 return NotFound("Pedido não encontrado.");
 
-            return Ok(pedido);
+            var retorno = new
+            {
+                pedido.Id,
+                pedido.ClienteId,
+                ClienteNome = pedido.Cliente.Nome,
+                pedido.Status,
+                DataPedido = pedido.DataPedido,
+                Produtos = pedido.PedidoProdutos.Select(pp => new
+                {
+                    pp.ProdutoId,
+                    pp.Produto.Nome,
+                    pp.Produto.Preco,
+                    pp.Quantidade,
+                    ValorTotalProduto = pp.ValorTotal
+                }),
+                ValorTotalSemDesconto = pedido.ValorTotalSemDesconto,
+                Cupom = pedido.Cupom != null ? new
+                {
+                    pedido.Cupom.Codigo,
+                    pedido.Cupom.DescontoPercentual,
+                    pedido.Cupom.DataExpiracao
+                } : null,
+                ValorTotalComDesconto = pedido.ValorTotal
+            };
+
+            return Ok(retorno);
         }
 
+
         [HttpGet("cliente/{clienteId:guid}")]
-        public async Task<ActionResult<IEnumerable<Pedido>>> GetPedidosPorCliente(Guid clienteId, [FromQuery] PedidoStatus? status = null)
+        public async Task<ActionResult<Paginador<Pedido>>> GetPedidosPorCliente(
+            Guid clienteId,
+            [FromQuery] PedidoStatus? status = null,
+            [FromQuery] int pagina = 1,
+            [FromQuery] int tamanhoPagina = 10)
         {
             var cliente = await dbContext.Clientes.FindAsync(clienteId);
             if (cliente == null)
@@ -61,12 +102,19 @@ namespace Dunder_Store.Controllers
             if (status.HasValue)
                 query = query.Where(p => p.Status == status.Value);
 
-            var pedidos = await query.OrderByDescending(p => p.DataPedido).ToListAsync();
+            var totalItens = await query.CountAsync();
+
+            var pedidos = await query
+                .OrderByDescending(p => p.DataPedido)
+                .Skip((pagina - 1) * tamanhoPagina)
+                .Take(tamanhoPagina)
+                .ToListAsync();
 
             if (!pedidos.Any())
                 return NoContent();
 
-            return Ok(pedidos);
+            var resultado = new Paginador<Pedido>(pedidos, totalItens, pagina, tamanhoPagina);
+            return Ok(resultado);
         }
 
         [HttpPost]
@@ -81,7 +129,6 @@ namespace Dunder_Store.Controllers
 
             var codigos = novoPedidoDTO.produtos.Select(p => p.CodigoDeBarra).ToList();
             var produtosEncontrados = await dbContext.Produtos.Where(p => codigos.Contains(p.CodigoDeBarra)).ToListAsync();
-
             if (produtosEncontrados.Count != novoPedidoDTO.produtos.Count)
                 return BadRequest("Um ou mais produtos não foram encontrados.");
 
@@ -90,6 +137,7 @@ namespace Dunder_Store.Controllers
                 Status = PedidoStatus.Carrinho
             };
 
+            // adicionar produtos
             foreach (var produtoDTO in novoPedidoDTO.produtos)
             {
                 var produto = produtosEncontrados.FirstOrDefault(p => p.CodigoDeBarra == produtoDTO.CodigoDeBarra);
@@ -104,18 +152,34 @@ namespace Dunder_Store.Controllers
                 }
             }
 
+            // aplicar cupom
+            if (!string.IsNullOrWhiteSpace(novoPedidoDTO.cupomCodigo))
+            {
+                var cupom = await dbContext.Cupons.FirstOrDefaultAsync(c =>
+                    c.Codigo.ToUpper() == novoPedidoDTO.cupomCodigo.Trim().ToUpper() &&
+                    c.Ativo && c.DataExpiracao >= DateTime.Now);
+
+                if (cupom == null)
+                    return BadRequest("Cupom inválido ou expirado.");
+
+                novoPedido.CupomId = cupom.Id;
+                novoPedido.Cupom = cupom;
+            }
+
             await dbContext.Pedidos.AddAsync(novoPedido);
             await dbContext.SaveChangesAsync();
 
             return CreatedAtAction(nameof(GetPedido), new { id = novoPedido.Id }, novoPedido);
         }
 
+
         [HttpGet("carrinho/{clienteId:guid}")]
-        public async Task<ActionResult<Pedido>> GetCarrinhoPorCliente(Guid clienteId)
+        public async Task<ActionResult<object>> GetCarrinhoPorCliente(Guid clienteId)
         {
             var carrinho = await dbContext.Pedidos
                 .Include(p => p.PedidoProdutos).ThenInclude(pp => pp.Produto)
                 .Include(p => p.Cliente)
+                .Include(p => p.Cupom)
                 .FirstOrDefaultAsync(p => p.ClienteId == clienteId && p.Status == PedidoStatus.Carrinho);
 
             if (carrinho == null)
@@ -133,8 +197,34 @@ namespace Dunder_Store.Controllers
                 await dbContext.SaveChangesAsync();
             }
 
-            return Ok(carrinho);
+            // Montar retorno customizado
+            var retorno = new
+            {
+                carrinho.Id,
+                carrinho.ClienteId,
+                ClienteNome = carrinho.Cliente.Nome,
+                carrinho.Status,
+                Produtos = carrinho.PedidoProdutos.Select(pp => new
+                {
+                    pp.ProdutoId,
+                    pp.Produto.Nome,
+                    pp.Produto.Preco,
+                    pp.Quantidade,
+                    ValorTotalProduto = pp.ValorTotal
+                }),
+                ValorTotalSemDesconto = carrinho.ValorTotalSemDesconto,
+                Cupom = carrinho.Cupom != null ? new
+                {
+                    carrinho.Cupom.Codigo,
+                    carrinho.Cupom.DescontoPercentual,
+                    carrinho.Cupom.DataExpiracao
+                } : null,
+                ValorTotalComDesconto = carrinho.ValorTotal
+            };
+
+            return Ok(retorno);
         }
+
 
         [HttpPost("finalizar/{id:guid}")]
         public async Task<IActionResult> FinalizarPedido(Guid id)
@@ -186,6 +276,42 @@ namespace Dunder_Store.Controllers
                         Quantidade = produtoDTO.Quantidade
                     });
                 }
+            }
+
+            await dbContext.SaveChangesAsync();
+            return NoContent();
+        }
+
+        [HttpPatch("{id:guid}/cupom")]
+        public async Task<IActionResult> AtualizarCupom(Guid id, [FromForm] string cupomCodigo)
+        {
+            var pedido = await dbContext.Pedidos
+                .Include(p => p.Cupom)
+                .Include(p => p.PedidoProdutos).ThenInclude(pp => pp.Produto)
+                .FirstOrDefaultAsync(p => p.Id == id);
+
+            if (pedido == null)
+                return NotFound("Pedido não encontrado.");
+
+            if (pedido.Status != PedidoStatus.Carrinho)
+                return BadRequest("Não é possível alterar um pedido já finalizado.");
+
+            if (string.IsNullOrWhiteSpace(cupomCodigo))
+            {
+                pedido.CupomId = null;
+                pedido.Cupom = null;
+            }
+            else
+            {
+                var cupom = await dbContext.Cupons.FirstOrDefaultAsync(c =>
+                    c.Codigo.ToUpper() == cupomCodigo.Trim().ToUpper() &&
+                    c.Ativo && c.DataExpiracao >= DateTime.Now);
+
+                if (cupom == null)
+                    return BadRequest("Cupom inválido ou expirado.");
+
+                pedido.CupomId = cupom.Id;
+                pedido.Cupom = cupom;
             }
 
             await dbContext.SaveChangesAsync();
